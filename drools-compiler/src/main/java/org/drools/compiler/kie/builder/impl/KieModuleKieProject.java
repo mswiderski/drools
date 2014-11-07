@@ -1,22 +1,26 @@
 package org.drools.compiler.kie.builder.impl;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.drools.core.common.ProjectClassLoader;
+import org.drools.core.common.ResourceDelegate;
 import org.kie.api.builder.ReleaseId;
 import org.kie.api.builder.model.KieBaseModel;
 import org.kie.api.builder.model.KieSessionModel;
+import org.kie.api.io.Resource;
 import org.kie.internal.utils.ClassLoaderResolver;
 import org.kie.internal.utils.NoDepsClassLoaderResolver;
 import org.kie.internal.utils.ServiceRegistryImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.drools.core.common.ProjectClassLoader.createProjectClassLoader;
-import static org.drools.core.util.ClassUtils.convertResourceToClassName;
+import static org.drools.core.common.ProjectClassLoader.*;
+import static org.drools.core.util.ClassUtils.*;
 
 /**
  * Discovers all KieModules on the classpath, via the kmodule.xml file.
@@ -40,7 +44,7 @@ public class KieModuleKieProject extends AbstractKieProject {
         this( kieModule, null );
     }
     
-    public KieModuleKieProject(InternalKieModule kieModule, ClassLoader parent) {
+    public KieModuleKieProject(final InternalKieModule kieModule, ClassLoader parent) {
         this.kieModule = kieModule;
         if( parent == null ) {
             ClassLoaderResolver resolver;
@@ -51,7 +55,17 @@ public class KieModuleKieProject extends AbstractKieProject {
             }
             parent = resolver.getClassLoader( kieModule );
         }
-        this.cl = createProjectClassLoader( parent );
+        this.cl = createProjectClassLoader( parent, new ResourceDelegate() {
+            public InputStream getResourceAsStream(String resource) throws IOException {
+                Resource resourceIO = kieModule.getResource(resource);
+
+                if (resourceIO != null) {
+                    return resourceIO.getInputStream();
+                }
+
+                return null;
+            }
+        });
     }
 
     public void init() {
@@ -104,7 +118,17 @@ public class KieModuleKieProject extends AbstractKieProject {
     }
 
     public ClassLoader getClonedClassLoader() {
-        ProjectClassLoader clonedCL = createProjectClassLoader( cl.getParent() );
+        ProjectClassLoader clonedCL = createProjectClassLoader( cl.getParent(), new ResourceDelegate() {
+            public InputStream getResourceAsStream(String resource) throws IOException {
+                Resource resourceIO = kieModule.getResource(resource);
+
+                if (resourceIO != null) {
+                    return resourceIO.getInputStream();
+                }
+
+                return null;
+            }
+        });
         initClassLoader( clonedCL );
         return clonedCL;
     }

@@ -37,6 +37,13 @@ public class ProjectClassLoader extends ClassLoader {
 
     private Set<String> loadedClasses = new HashSet<String>();
 
+
+    protected void setResourceDelegate(ResourceDelegate resourceDelegate) {
+        this.resourceDelegate = resourceDelegate;
+    }
+
+    private ResourceDelegate resourceDelegate;
+
     private ProjectClassLoader(ClassLoader parent) {
         super(parent);
     }
@@ -92,12 +99,22 @@ public class ProjectClassLoader extends ClassLoader {
         return parent;
     }
 
-
-    public static ProjectClassLoader createProjectClassLoader(ClassLoader parent) {
+    public static ProjectClassLoader createProjectClassLoader(ClassLoader parent, ResourceDelegate delegate) {
         if (parent == null) {
             return createProjectClassLoader();
         }
-        return parent instanceof ProjectClassLoader ? (ProjectClassLoader)parent : internalCreate(parent);
+        ProjectClassLoader cl = parent instanceof ProjectClassLoader ? (ProjectClassLoader)parent : internalCreate(parent);
+        cl.setResourceDelegate(delegate);
+        return cl;
+    }
+
+    public static ProjectClassLoader createProjectClassLoader(ClassLoader parent) {
+        ResourceDelegate delegate = null;
+        if (parent instanceof ProjectClassLoader) {
+            delegate = ((ProjectClassLoader) parent).resourceDelegate;
+        }
+
+        return createProjectClassLoader(parent, delegate);
     }
 
     public static ProjectClassLoader createProjectClassLoader(ClassLoader parent, Map<String, byte[]> store) {
@@ -214,7 +231,24 @@ public class ProjectClassLoader extends ClassLoader {
     @Override
     public InputStream getResourceAsStream(String name) {
         byte[] bytecode = getBytecode(name);
-        return bytecode != null ? new ByteArrayInputStream( bytecode ) : super.getResourceAsStream(name);
+
+        if (bytecode != null) {
+            return new ByteArrayInputStream( bytecode );
+        } else {
+            if (resourceDelegate != null) {
+                try {
+                    InputStream stream = resourceDelegate.getResourceAsStream(name);
+
+                    if (stream != null) {
+                        return stream;
+                    }
+                } catch (IOException e) {
+
+                }
+            }
+
+            return super.getResourceAsStream(name);
+        }
     }
 
     @Override
